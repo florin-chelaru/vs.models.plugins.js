@@ -36,7 +36,9 @@ if (COMPILED) {
 
 goog.provide('vs.models.plugins.BigwigDataSource');
 
-goog.require('vs.models');
+if (COMPILED) {
+  goog.require('vs.models');
+}
 
 // Because vs.models.DataSource is defined in another library (vis.js), there is no way for the Google Closure compiler
 // to know the names of the private variables of that class. Therefore, when overriding this class, we need to declare
