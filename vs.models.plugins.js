@@ -38,7 +38,8 @@ goog.require('vs.models');
 
 // Because vs.models.DataSource is defined in another library (vis.js), there is no way for the Google Closure compiler
 // to know the names of the private variables of that class. Therefore, when overriding this class, we need to declare
-// private variables in a private scope, so we don't accidentally replace existing private members.
+// private variables in a private scope (closure), using Symbols (ES6), so we don't accidentally replace existing
+// private members.
 
 /**
  * TODO: Add option to load additional col metadata (metadata about each file/track),
@@ -57,9 +58,6 @@ vs.models.plugins.BigwigDataSource = (function() {
   var _maxItems = Symbol('_maxItems');
 
   /**
-   * TODO: Add option to load additional col metadata (metadata about each file/track),
-   * TODO: and also more metadata about rows (each snip for example)
-   * TODO: And labels for values (pval, etc)
    * @param {Array.<string>} bigwigURIs
    * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURI: (string|undefined), valsLabel: (string|undefined)}} options
    * @constructor
@@ -186,15 +184,13 @@ vs.models.plugins.BigwigDataSource = (function() {
 
   Object.defineProperties(BigwigDataSource.prototype, {
     ready: {
-      get: /** @type {function (this:vs.models.plugins.BigwigDataSource)} */ (function() { return this[_ready]; })
+      get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_ready]; })
     },
-    isReady: { get: /** @type {function (this:vs.models.plugins.BigwigDataSource)} */ (function() { return this[_isReady]; })}
+    isReady: { get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_isReady]; })}
   });
 
   return BigwigDataSource;
 })();
-
-//var bs = new vs.models.plugins.BigwigDataSource()
 
 
 goog.provide('vs.models.plugins');

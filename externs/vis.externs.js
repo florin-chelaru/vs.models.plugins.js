@@ -1353,3 +1353,13 @@ vs.ui.canvas.CanvasVis.prototype.activeCanvas;
 vs.ui.canvas.CanvasVis.prototype.doubleBuffer;
 
 vs.ui.canvas.CanvasVis.prototype.finalizeDraw = function() {};
+
+/**
+ * @param {CanvasRenderingContext2D} context
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} r
+ * @param {string} [fill]
+ * @param {string} [stroke]
+ */
+vs.ui.canvas.CanvasVis.circle = function(context, cx, cy, r, fill, stroke) {};
