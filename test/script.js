@@ -270,7 +270,7 @@ main.controller('vs.MainController', ['$scope', '$templateCache', function($scop
             }
           }
         ],
-        data: vs.models.plugins.BigwigDataSource.createNew(
+        data: new vs.models.plugins.BigwigDataSource(
           [
             'http://localhost/E001-H3K4me1.pval.signal.bigwig',
             'http://egg2.wustl.edu/roadmap/data/byFileType/signal/consolidated/macs2signal/pval/E001-H3K4me3.pval.signal.bigwig',

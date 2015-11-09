@@ -7,4 +7,4 @@
 goog.require('vs.models.plugins.BigwigDataSource');
 
 goog.exportSymbol('vs.models.plugins.BigwigDataSource', vs.models.plugins.BigwigDataSource);
-goog.exportProperty(vs.models.plugins.BigwigDataSource, 'createNew', vs.models.plugins.BigwigDataSource.createNew);
+//goog.exportProperty(vs.models.plugins.BigwigDataSource, 'createNew', vs.models.plugins.BigwigDataSource.createNew);
