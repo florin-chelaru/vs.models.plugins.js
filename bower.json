@@ -1,0 +1,37 @@
+{
+  "name": "vs.models.plugins.js",
+  "version": "0.0.0",
+  "authors": [
+    "Florin Chelaru <florinc@mit.edu>"
+  ],
+  "description": "Data model plugins for vis.js",
+  "main": "vs.models.plugins.js",
+  "moduleType": [
+    "globals"
+  ],
+  "keywords": [
+    "visualization",
+    "epigenomic"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "vis.js": "git://github.com/florin-chelaru/vis.js.git",
+    "bigwig.js": "git://github.com/florin-chelaru/bigwig.js.git"
+  },
+
+  "devDependencies": {
+    "google-closure-library": "git://github.com/google/closure-library.git#56712dfced32778fc8435a4bea6a2e422e5f03c1",
+    "closure-compiler": "0.2.7",
+    "bigwig.js": "git://github.com/florin-chelaru/bigwig.js.git",
+    "bootstrap": "3.3.5",
+    "angular-bootstrap": "0.14.2",
+    "qunit": "1.19.0"
+  }
+}
