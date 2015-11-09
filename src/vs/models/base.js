@@ -9,7 +9,9 @@
  * @suppress {globalThis}
  */
 
-goog.provide('vs.models');
+if (COMPILED) {
+  goog.provide('vs.models');
+}
 
 // Extend the namespaces defined here with the ones in the base vis.js package
 (function() {
