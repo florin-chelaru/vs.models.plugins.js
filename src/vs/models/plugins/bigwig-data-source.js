@@ -30,6 +30,10 @@ vs.models.plugins.BigwigDataSource = (function() {
   var _proxyURI = Symbol('_proxyURI');
   var _ready = Symbol('_ready');
   var _maxItems = Symbol('_maxItems');
+  var _bigwigURIs = Symbol('_bigwigURIs');
+  var _bwFiles = Symbol('_bwFiles');
+  var _colsFileMap = Symbol('_colsFileMap');
+  var _valsLabel = Symbol('_valsLabel');
 
   /**
    * @param {Array.<string>} bigwigURIs
@@ -45,6 +49,29 @@ vs.models.plugins.BigwigDataSource = (function() {
      * @private
      */
     this[_isReady] = false;
+
+    /**
+     * @type {string|undefined}
+     * @private
+     */
+    this[_valsLabel] = options['valsLabel'];
+
+    /**
+     * @type {Array.<string>}
+     * @private
+     */
+    this[_bigwigURIs] = bigwigURIs;
+
+    /**
+     * @type {Array.<bigwig.BigwigFile>}
+     * @private
+     */
+    this[_bwFiles] = null;
+
+    /**
+     * @type {Object.<string, bigwig.BigwigFile>}
+     */
+    this[_colsFileMap] = {};
 
     /**
      * @type {Array.<vs.models.Query>}
@@ -101,19 +128,22 @@ vs.models.plugins.BigwigDataSource = (function() {
      */
     this[_ready] = new Promise(function(resolve, reject) {
       var ncols = bigwigURIs.length;
-      var cols = {
-        label: bigwigURIs.map(function(uri) { return uri.substr(Math.max(uri.lastIndexOf('/'), 0)).replace('.bigwig', '').replace('.bw', ''); })
-      };
+
+      var fileNames = bigwigURIs.map(function(uri) { return uri.substr(Math.max(uri.lastIndexOf('/'), 0)).replace('.bigwig', '').replace('.bw', ''); });
+      var cols = [new vs.models.DataArray(fileNames, 'bwFiles')];
 
       var range = vs.models.GenomicRangeQuery.extract(self['query']);
 
-      var bwFiles = bigwigURIs.map(function(uri) { return new bigwig.BigwigFile(uri, self[_proxyURI], 256); });
+      self[_bwFiles] = bigwigURIs.map(function(uri) { return new bigwig.BigwigFile(uri, self[_proxyURI], 256); });
 
+      bigwigURIs.forEach(function(uri, i) {
+        self[_colsFileMap][fileNames[i]] = self[_bwFiles][i];
+      });
 
       var rows = {};
-      var v = new Array(bwFiles.length);
+      var v = new Array(self[_bwFiles].length);
 
-      u.async.each(bwFiles,
+      u.async.each(self[_bwFiles],
         /**
          * @param {bigwig.BigwigFile} bwFile
          * @param {number} i
@@ -145,7 +175,7 @@ vs.models.plugins.BigwigDataSource = (function() {
 
           self['ncols'] = ncols;
           self['nrows'] = nrows;
-          self['cols'] = u.map(cols, function(val, key) { return new vs.models.DataArray(val, key); });
+          self['cols'] = cols;
           self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
           self['vals'] = [new vs.models.DataArray(vals, options['valsLabel'] || 'v0')];
           self[_isReady] = true;
@@ -162,6 +192,65 @@ vs.models.plugins.BigwigDataSource = (function() {
     },
     isReady: { get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_isReady]; })}
   });
+
+  /**
+   * @param {vs.models.Query|Array.<vs.models.Query>} queries
+   * @param {boolean} [copy] True if the result should be a copy instead of changing the current instance
+   * @returns {Promise.<vs.models.DataSource>}
+   * @override
+   */
+  BigwigDataSource.prototype.applyQuery = function(queries, copy) {
+    var self = this;
+    return /** @type {Promise.<vs.models.DataSource>} */ (vs.models.DataSource.prototype.applyQuery.apply(this, arguments)
+      .then(/** @param {vs.models.DataSource} tmp */ function(tmp) {
+
+        queries = /** @type {Array.<vs.models.Query>} */ ((queries instanceof vs.models.Query) ? [queries] : queries);
+        var range = vs.models.GenomicRangeQuery.extract(queries);
+
+        /** @type {Array.<bigwig.BigwigFile>} */
+        var bwFiles = self['cols'][0].d.map(function(fileName, i) { return self[_colsFileMap][fileName]; });
+
+        var rows = {};
+        var v = new Array(bwFiles.length);
+
+        u.async.each(bwFiles,
+          /**
+           * @param {bigwig.BigwigFile} bwFile
+           * @param {number} i
+           */
+          function(bwFile, i) {
+            return new Promise(function(resolve, reject) {
+              bwFile.query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {maxItems: self[_maxItems]})
+                .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
+                  if (!rows.chr) {
+                    rows.chr = records.map(function(r) { return r.chrName; });
+                    rows.start = records.map(function(r) { return r.start; });
+                    rows.end = records.map(function(r) { return r.end; });
+                  }
+                  if (rows.chr.length < records.length) {
+                    records = records.slice(0, rows.chr.length);
+                  }
+                  if (records.length < rows.chr.length) {
+                    rows.chr = rows.chr.slice(0, records.length);
+                    rows.start = rows.start.slice(0, records.length);
+                    rows.end = rows.end.slice(0, records.length);
+                  }
+                  v[i] = records.map(function(r) { return r.value(bigwig.DataRecord.Aggregate.MAX); });
+                  resolve();
+                });
+            });
+          }).then(function() {
+            var nrows = rows.chr.length;
+            var vals = v.reduce(function(v1, v2) { return v1.concat(v2); });
+            self['query'] = queries;
+            self['nrows'] = nrows;
+            self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
+            self['vals'] = [new vs.models.DataArray(vals, self[_valsLabel] || 'v0')];
+            self['changed'].fire(self);
+            return self;
+          });
+      }));
+  };
 
   return BigwigDataSource;
 })();
