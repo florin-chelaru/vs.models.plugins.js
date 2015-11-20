@@ -209,18 +209,21 @@ vs.models.plugins.BigwigDataSource = (function() {
           self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
           self['vals'] = [new vs.models.DataArray(vals, options['valsLabel'] || 'v0')];
           self[_isReady] = true;
+          self['changed'].fire(self);
           resolve(self);
         });
     });
+
+    this['changing'].fire(this);
   };
 
   goog.inherits(BigwigDataSource, vs.models.DataSource);
 
   Object.defineProperties(BigwigDataSource.prototype, {
-    ready: {
+    'ready': {
       get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_ready]; })
     },
-    isReady: { get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_isReady]; })}
+    'isReady': { get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_isReady]; })}
   });
 
   /**
@@ -231,55 +234,60 @@ vs.models.plugins.BigwigDataSource = (function() {
    */
   BigwigDataSource.prototype.applyQuery = function(queries, copy) {
     var self = this;
-    return /** @type {Promise.<vs.models.DataSource>} */ (vs.models.DataSource.prototype.applyQuery.apply(this, arguments)
-      .then(/** @param {vs.models.DataSource} tmp */ function(tmp) {
+    return self[_ready].then(function() {
+      self[_isReady] = false;
+      self[_ready] = /** @type {Promise.<vs.models.DataSource>} */ (vs.models.DataSource.prototype.applyQuery.apply(this, arguments)
+        .then(/** @param {vs.models.DataSource} tmp */ function(tmp) {
+          queries = /** @type {Array.<vs.models.Query>} */ ((queries instanceof vs.models.Query) ? [queries] : queries);
+          var range = vs.models.GenomicRangeQuery.extract(queries);
 
-        queries = /** @type {Array.<vs.models.Query>} */ ((queries instanceof vs.models.Query) ? [queries] : queries);
-        var range = vs.models.GenomicRangeQuery.extract(queries);
+          /** @type {Array.<bigwig.BigwigFile>} */
+          var bwFiles = self['cols'][0].d.map(function(fileName, i) { return self[_colsFileMap][fileName]; });
 
-        /** @type {Array.<bigwig.BigwigFile>} */
-        var bwFiles = self['cols'][0].d.map(function(fileName, i) { return self[_colsFileMap][fileName]; });
+          var rows = {};
+          var v = new Array(bwFiles.length);
 
-        var rows = {};
-        var v = new Array(bwFiles.length);
-
-        u.async.each(bwFiles,
-          /**
-           * @param {bigwig.BigwigFile} bwFile
-           * @param {number} i
-           */
-          function(bwFile, i) {
-            return new Promise(function(resolve, reject) {
-              bwFile.query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {maxItems: self[_maxItems]})
-                .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
-                  if (!rows.chr) {
-                    rows.chr = records.map(function(r) { return r.chrName; });
-                    rows.start = records.map(function(r) { return r.start; });
-                    rows.end = records.map(function(r) { return r.end; });
-                  }
-                  if (rows.chr.length < records.length) {
-                    records = records.slice(0, rows.chr.length);
-                  }
-                  if (records.length < rows.chr.length) {
-                    rows.chr = rows.chr.slice(0, records.length);
-                    rows.start = rows.start.slice(0, records.length);
-                    rows.end = rows.end.slice(0, records.length);
-                  }
-                  v[i] = records.map(function(r) { return r.value(bigwig.DataRecord.Aggregate.MAX); });
-                  resolve();
-                });
+          return u.async.each(bwFiles,
+            /**
+             * @param {bigwig.BigwigFile} bwFile
+             * @param {number} i
+             */
+            function(bwFile, i) {
+              return new Promise(function(resolve, reject) {
+                bwFile.query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {maxItems: self[_maxItems]})
+                  .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
+                    if (!rows.chr) {
+                      rows.chr = records.map(function(r) { return r.chrName; });
+                      rows.start = records.map(function(r) { return r.start; });
+                      rows.end = records.map(function(r) { return r.end; });
+                    }
+                    if (rows.chr.length < records.length) {
+                      records = records.slice(0, rows.chr.length);
+                    }
+                    if (records.length < rows.chr.length) {
+                      rows.chr = rows.chr.slice(0, records.length);
+                      rows.start = rows.start.slice(0, records.length);
+                      rows.end = rows.end.slice(0, records.length);
+                    }
+                    v[i] = records.map(function(r) { return r.value(bigwig.DataRecord.Aggregate.MAX); });
+                    resolve();
+                  });
+              });
+            }).then(function() {
+              var nrows = rows.chr.length;
+              var vals = v.reduce(function(v1, v2) { return v1.concat(v2); });
+              self['query'] = queries;
+              self['nrows'] = nrows;
+              self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
+              self['vals'] = [new vs.models.DataArray(vals, self[_valsLabel] || 'v0')];
+              self['changed'].fire(self);
+              self[_isReady] = true;
+              return Promise.resolve(self);
             });
-          }).then(function() {
-            var nrows = rows.chr.length;
-            var vals = v.reduce(function(v1, v2) { return v1.concat(v2); });
-            self['query'] = queries;
-            self['nrows'] = nrows;
-            self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
-            self['vals'] = [new vs.models.DataArray(vals, self[_valsLabel] || 'v0')];
-            self['changed'].fire(self);
-            return self;
-          });
-      }));
+        }));
+      self['changing'].fire(self);
+      return self[_ready];
+    });
   };
 
   return BigwigDataSource;
