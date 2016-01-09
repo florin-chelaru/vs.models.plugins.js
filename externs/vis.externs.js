@@ -1,21 +1,21 @@
 /**
-* @license vis.js
-* Copyright (c) 2015 Florin Chelaru
-* License: MIT
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-* documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
-* rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-* permit persons to whom the Software is furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
-* Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-* WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-* COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-* OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+ * @license vis.js
+ * Copyright (c) 2015 Florin Chelaru
+ * License: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+ * WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 /** @suppress {duplicate} */
 var vs = {
@@ -438,6 +438,14 @@ vs.models.DataSource.prototype.changed;
 vs.models.DataSource.prototype.applyQuery = function(queries, copy) {};
 
 /**
+ * For a static data source (that does not change over time), this does the exact same thing as applyQuery; for dynamic
+ * data sources this simply filters out data already loaded in memory, without making any external calls.
+ * @param {vs.models.Query|Array.<vs.models.Query>} queries
+ * @returns {Promise.<vs.models.DataSource>}
+ */
+vs.models.DataSource.prototype.filter = function(queries) {};
+
+/**
  * @param {vs.models.DataSource} data
  * @param {vs.models.Query} q
  * @returns {Promise.<vs.models.DataSource>}
@@ -484,6 +492,24 @@ vs.models.DataSource.prototype.rowIndex = function(label) {};
  * @returns {{query: *, nrows: *, ncols: *, rows: *, cols: *, vals: *, isReady: *}}
  */
 vs.models.DataSource.prototype.raw = function() {};
+
+/**
+ * @returns {Array.<vs.models.DataRow>}
+ */
+vs.models.DataSource.prototype.asDataRowArray = function() {};
+
+/**
+ * @param {number} i
+ * @returns {string}
+ */
+vs.models.DataSource.prototype.key = function(i) {};
+
+/**
+ * @param {vs.models.DataRow} d
+ * @param {number} [i]
+ * @returns {string}
+ */
+vs.models.DataSource.key = function(d, i) {};
 
 /**
  * @param {{
@@ -980,10 +1006,11 @@ vs.ui.Decorator.prototype.endDraw = function() {};
  * @param {angular.Scope} $scope
  * @param {vs.async.TaskService} taskService
  * @param {angular.$timeout} $timeout
+ * @param {boolean} [overridesVisHandler]
  * @constructor
  * @extends {vs.directives.Directive}
  */
-vs.directives.GraphicDecorator = function($scope, taskService, $timeout) {};
+vs.directives.GraphicDecorator = function($scope, taskService, $timeout, overridesVisHandler) {};
 
 /**
  * @type {vs.ui.Decorator}
@@ -1238,6 +1265,116 @@ vs.models.GenomicRangeQuery.extract = function(query) {};
  * @extends vs.ui.VisHandler
  */
 vs.ui.svg.SvgVis = function () {};
+
+/**
+ * @param {vs.ui.VisHandler} source
+ * @param {vs.models.DataSource} data
+ * @param {vs.models.DataRow} selectedRow
+ * @param {vs.ui.BrushingEvent.Action} action
+ * @constructor
+ */
+vs.ui.BrushingEvent = function(source, data, selectedRow, action) {};
+
+/**
+ * @enum {string}
+ */
+vs.ui.BrushingEvent.Action = {
+  MOUSEOVER: 'mouseover',
+  MOUSEOUT: 'mouseout',
+  SELECT: 'select',
+  DESELECT: 'deselect'
+};
+
+/**
+ * @param {{$scope: angular.Scope, $element: jQuery, $attrs: angular.Attributes, $timeout: angular.$timeout, taskService: vs.async.TaskService}} $ng
+ * @param {jQuery} $targetElement
+ * @param {vs.ui.VisHandler} target
+ * @param {Object.<string, *>} options
+ * @constructor
+ * @extends vs.ui.Decorator
+ */
+vs.ui.decorators.Brushing = function($ng, $targetElement, target, options) {};
+
+/**
+ * @type {u.Event.<vs.ui.BrushingEvent>}
+ * @name vs.ui.decorators.Brushing#brushing
+ */
+vs.ui.decorators.Brushing.prototype.brushing;
+
+/**
+ * @type {Object.<string, vs.ui.Setting>}
+ */
+vs.ui.decorators.Brushing.Settings = {};
+
+/**
+ * @param {vs.ui.BrushingEvent} e
+ */
+vs.ui.decorators.Brushing.prototype.brush = function(e) {};
+
+/**
+ * @param {{$scope: angular.Scope, $element: jQuery, $attrs: angular.Attributes, $timeout: angular.$timeout, taskService: vs.async.TaskService}} $ng
+ * @param {jQuery} $targetElement
+ * @param {vs.ui.VisHandler} target
+ * @param {Object.<string, *>} options
+ * @constructor
+ * @extends vs.ui.decorators.Brushing
+ */
+vs.ui.svg.SvgBrushing = function($ng, $targetElement, target, options) {};
+
+/**
+ * @returns {Promise}
+ */
+vs.ui.svg.SvgBrushing.prototype.beginDraw = function() {};
+
+/**
+ * @returns {Promise}
+ */
+vs.ui.svg.SvgBrushing.prototype.endDraw = function() {};
+
+/**
+ * @param {vs.ui.BrushingEvent} e
+ */
+vs.ui.svg.SvgBrushing.prototype.brush = function(e) {};
+
+/**
+ * @param {{$scope: angular.Scope, $element: jQuery, $attrs: angular.Attributes, $timeout: angular.$timeout, taskService: vs.async.TaskService}} $ng
+ * @param {jQuery} $targetElement
+ * @param {vs.ui.VisHandler} target
+ * @param {Object.<string, *>} options
+ * @constructor
+ * @extends vs.ui.decorators.Brushing
+ */
+vs.ui.canvas.CanvasBrushing = function($ng, $targetElement, target, options) {};
+
+/**
+ * @returns {Promise}
+ */
+vs.ui.canvas.CanvasBrushing.prototype.endDraw = function() {};
+
+/**
+ * @param {angular.Scope} $scope
+ * @param {vs.async.TaskService} taskService
+ * @param {angular.$timeout} $timeout
+ * @param $rootScope Angular root scope
+ * @constructor
+ * @extends {vs.directives.GraphicDecorator}
+ */
+vs.directives.Brushing = function($scope, taskService, $timeout, $rootScope) {};
+
+/**
+ * @type {{pre: (undefined|function(angular.Scope, jQuery, angular.Attributes, (*|undefined))), post: (undefined|function(angular.Scope, jQuery, angular.Attributes, (*|undefined)))}|function(angular.Scope, jQuery, angular.Attributes, (*|undefined))}
+ */
+vs.directives.Brushing.prototype.link = function($scope, $element, $attrs, controller) {};
+
+/**
+ * @param {{$scope: angular.Scope, $element: jQuery, $attrs: angular.Attributes, $timeout: angular.$timeout, taskService: vs.async.TaskService}} $ng
+ * @param {jQuery} $targetElement
+ * @param {vs.ui.VisHandler} target
+ * @param {Object.<string, *>} options
+ * @returns {vs.ui.Decorator}
+ * @override
+ */
+vs.directives.Brushing.prototype.createDecorator = function($ng, $targetElement, target, options) {};
 
 /**
  * @param {{$scope: angular.Scope, $element: jQuery, $attrs: angular.Attributes, $timeout: angular.$timeout, taskService: vs.async.TaskService}} $ng
