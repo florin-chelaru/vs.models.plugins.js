@@ -30,8 +30,6 @@
     "google-closure-library": "git://github.com/google/closure-library.git#56712dfced32778fc8435a4bea6a2e422e5f03c1",
     "closure-compiler": "0.2.7",
     "bigwig.js": "git://github.com/florin-chelaru/bigwig.js.git",
-    "bootstrap": "3.3.5",
-    "angular-bootstrap": "0.14.2",
     "qunit": "1.19.0",
 
     "vs.ui.plugins.js": "git://github.com/florin-chelaru/vs.ui.plugins.js.git"
