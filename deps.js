@@ -3,3 +3,4 @@
 goog.addDependency('../../../../src/vs/models/base.js', ['vs.models'], [], false);
 goog.addDependency('../../../../src/vs/models/plugins/__namespace__.js', ['vs.models.plugins'], ['vs.models.plugins.BigwigDataSource'], false);
 goog.addDependency('../../../../src/vs/models/plugins/bigwig-data-source.js', ['vs.models.plugins.BigwigDataSource'], ['vs.models'], false);
+goog.addDependency('../../../../src/vs/models/plugins/deprecated/bigwig-data-source.js', ['vs.models.plugins.deprecated.BigwigDataSource'], ['vs.models'], false);

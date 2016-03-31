@@ -5,9 +5,9 @@
  */
 
 /**
- * @param {Array.<string>} bigwigURIs
- * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURI: (string|undefined), valsLabel: (string|undefined)}} options
+ * @param {string} bigwigURL
+ * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURL: (string|undefined), id: (string|undefined), label: (string|undefined)}} options
  * @constructor
  * @extends {vs.models.DataSource}
  */
-vs.models.plugins.BigwigDataSource = function(bigwigURIs, options) {};
+vs.models.plugins.BigwigDataSource = function(bigwigURL, options) {};

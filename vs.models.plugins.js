@@ -49,29 +49,28 @@ if (COMPILED) {
  * TODO: Add option to load additional col metadata (metadata about each file/track),
  * TODO: and also more metadata about rows (each snip for example)
  * TODO: And labels for values (pval, etc)
- * @param {Array.<string>} bigwigURIs
- * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURI: (string|undefined), valsLabel: (string|undefined)}} options
+ * @param {string} bigwigURL
+ * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURL: (string|undefined), id: (string|undefined), label: (string|undefined)}} options
  * @constructor
  * @extends {vs.models.DataSource}
  */
 vs.models.plugins.BigwigDataSource = (function() {
 
+  var _id = Symbol('_id');
   var _isReady = Symbol('_isReady');
-  var _proxyURI = Symbol('_proxyURI');
+  var _proxyURL = Symbol('_proxyURL');
   var _ready = Symbol('_ready');
   var _maxItems = Symbol('_maxItems');
-  var _bigwigURIs = Symbol('_bigwigURIs');
-  var _bwFiles = Symbol('_bwFiles');
-  var _colsFileMap = Symbol('_colsFileMap');
-  var _valsLabel = Symbol('_valsLabel');
+  var _bigwigURL = Symbol('_bigwigURL');
+  var _bwFile = Symbol('_bwFile');
 
   /**
-   * @param {Array.<string>} bigwigURIs
-   * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURI: (string|undefined), valsLabel: (string|undefined)}} options
+   * @param {string} bigwigURL
+   * @param {{initialQuery: (vs.models.Query|Array.<vs.models.Query>|undefined), proxyURL: (string|undefined), valsLabel: (string|undefined)}} options
    * @constructor
    * @extends {vs.models.DataSource}
    */
-  var BigwigDataSource = function(bigwigURIs, options) {
+  var BigwigDataSource = function(bigwigURL, options) {
     vs.models.DataSource.apply(this, arguments);
 
     /**
@@ -81,69 +80,70 @@ vs.models.plugins.BigwigDataSource = (function() {
     this[_isReady] = false;
 
     /**
+     * @type {string}
+     * @private
+     */
+    this[_bigwigURL] = bigwigURL;
+
+    /**
      * @type {string|undefined}
      * @private
      */
-    this[_valsLabel] = options['valsLabel'];
+    this[_proxyURL] = options['proxyURL'];
 
     /**
-     * @type {Array.<string>}
+     * @type {bigwig.BigwigFile}
      * @private
      */
-    this[_bigwigURIs] = bigwigURIs;
+    this[_bwFile] = new bigwig.BigwigFile(bigwigURL, this[_proxyURL], 256);
 
-    /**
-     * @type {Array.<bigwig.BigwigFile>}
-     * @private
-     */
-    this[_bwFiles] = null;
-
-    /**
-     * @type {Object.<string, bigwig.BigwigFile>}
-     */
-    this[_colsFileMap] = {};
+    var query = options['initialQuery'] ? (Array.isArray(options['initialQuery']) ? options['initialQuery'] : [options['initialQuery']]) : [];
 
     /**
      * @type {Array.<vs.models.Query>}
      * @private
      */
-    this['query'] = options['initialQuery'] ? (Array.isArray(options['initialQuery']) ? options['initialQuery'] : [options['initialQuery']]) : [];
+    this['query'] = query;
+
+    var fileName = bigwigURL.substr(Math.max(bigwigURL.lastIndexOf('/'), 0)).replace('.bigwig', '').replace('.bw', '');
+
+    var id = options['id'] || u.generatePseudoGUID(8);
 
     /**
-     * @type {string|undefined}
-     * @private
+     * @type {string}
      */
-    this[_proxyURI] = options['proxyURI'];
+    this[_id] = id;
 
     /**
-     * @type {number}
-     * @private
+     * @type {string}
      */
-    this['nrows'] = null;
+    this['label'] = options['label'] || fileName;
 
     /**
-     * @type {number}
-     * @private
+     * @type {string}
      */
-    this['ncols'] = null;
+    this['state'] = u.generatePseudoGUID(6);
 
-    /**
-     * @type {Array.<vs.models.DataArray>}
-     * @private
-     */
-    this['rows'] = null;
+    this['rowMetadata'] = [
+      {
+        'label': 'chrName',
+        'type': 'string'
+      },
+      {
+        'label': 'chr',
+        'type': 'string'
+      },
+      {
+        'label': 'start',
+        'type': 'number'
+      },
+      {
+        'label': 'end',
+        'type': 'number'
+      }
+    ];
 
-    /**
-     * @type {Array.<vs.models.DataArray>}
-     * @private
-     */
-    this['cols'] = null;
-
-    /**
-     * @type {Array.<vs.models.DataArray>}
-     * @private
-     */
-    this['vals'] = null;
+    this['d'] = null;
 
     /**
      * @type {number}
@@ -157,57 +157,69 @@ vs.models.plugins.BigwigDataSource = (function() {
      * @private
      */
     this[_ready] = new Promise(function(resolve, reject) {
-      var ncols = bigwigURIs.length;
+      var range = vs.models.GenomicRangeQuery.extract(query);
+      self[_bwFile].query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {'maxItems': self[_maxItems]})
+        .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
+          var length = records.length;
+          for (var i = 0; i < length; ++i) {
+            records[i]['__d__'] = id;
+          }
 
-      var fileNames = bigwigURIs.map(function(uri) { return uri.substr(Math.max(uri.lastIndexOf('/'), 0)).replace('.bigwig', '').replace('.bw', ''); });
-      var cols = [new vs.models.DataArray(fileNames, 'bwFiles')];
+          var summary = self[_bwFile].summary;
+          self['rowMetadata'] = self['rowMetadata'].concat([
+            {
+              'label': 'min',
+              'type': 'number',
+              'boundaries': {
+                'min': summary.min,
+                'max': summary.max
+              }
+            },
+            {
+              'label': 'max',
+              'type': 'number',
+              'boundaries': {
+                'min': summary.min,
+                'max': summary.max
+              }
+            },
+            {
+              'label': 'sum',
+              'type': 'number',
+              'boundaries': {
+                'min': summary.min,
+                'max': summary.sumData
+              }
+            },
+            {
+              'label': 'sumsq',
+              'type': 'number',
+              'boundaries': {
+                'min': summary.min * summary.min,
+                'max': summary.sumSquares
+              }
+            },
+            {
+              'label': 'avg',
+              'type': 'number',
+              'boundaries': {
+                'min': summary.min,
+                'max': summary.max
+              }
+            },
+            {
+              'label': 'norm',
+              'type': 'number',
+              'boundaries': summary.min > 0 ? { 'min': summary.min, 'max': summary.max } :
+                (summary.max < 0 ? {'min': -summary.max, 'max': -summary.min} : {'min': 0, 'max': Math.max(-summary.min, summary.max) })
+            },
+            {
+              'label': 'cnt',
+              'type': 'number'
+            }
+          ]);
 
-      var range = vs.models.GenomicRangeQuery.extract(self['query']);
-
-      self[_bwFiles] = bigwigURIs.map(function(uri) { return new bigwig.BigwigFile(uri, self[_proxyURI], 256); });
-
-      bigwigURIs.forEach(function(uri, i) {
-        self[_colsFileMap][fileNames[i]] = self[_bwFiles][i];
-      });
-
-      var rows = {};
-      var v = new Array(self[_bwFiles].length);
-
-      u.async.each(self[_bwFiles],
-        /**
-         * @param {bigwig.BigwigFile} bwFile
-         * @param {number} i
-         */
-        function(bwFile, i) {
-          return new Promise(function(resolve, reject) {
-            bwFile.query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {maxItems: self[_maxItems]})
-              .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
-                if (!rows.chr) {
-                  rows.chr = records.map(function(r) { return r.chrName; });
-                  rows.start = records.map(function(r) { return r.start; });
-                  rows.end = records.map(function(r) { return r.end; });
-                }
-                if (rows.chr.length < records.length) {
-                  records = records.slice(0, rows.chr.length);
-                }
-                if (records.length < rows.chr.length) {
-                  rows.chr = rows.chr.slice(0, records.length);
-                  rows.start = rows.start.slice(0, records.length);
-                  rows.end = rows.end.slice(0, records.length);
-                }
-                v[i] = records.map(function(r) { return r.value(bigwig.DataRecord.Aggregate.MAX); });
-                resolve();
-              });
-          });
-        }).then(function() {
-          var nrows = rows.chr.length;
-          var vals = v.reduce(function(v1, v2) { return v1.concat(v2); });
-
-          self['ncols'] = ncols;
-          self['nrows'] = nrows;
-          self['cols'] = cols;
-          self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
-          self['vals'] = [new vs.models.DataArray(vals, options['valsLabel'] || 'v0')];
+          self['d'] = records;
           self[_isReady] = true;
           self['changed'].fire(self);
           resolve(self);
@@ -220,6 +232,11 @@ vs.models.plugins.BigwigDataSource = (function() {
   goog.inherits(BigwigDataSource, vs.models.DataSource);
 
   Object.defineProperties(BigwigDataSource.prototype, {
+    'id': {
+      get: /** @type {function (this:BigwigDataSource)} */ (function () {
+        return this[_id];
+      })
+    },
     'ready': {
       get: /** @type {function (this:BigwigDataSource)} */ (function() { return this[_ready]; })
     },
@@ -234,60 +251,34 @@ vs.models.plugins.BigwigDataSource = (function() {
    */
   BigwigDataSource.prototype.applyQuery = function(queries, copy) {
     var self = this;
-    return self[_ready].then(function() {
-      self[_isReady] = false;
-      self[_ready] = /** @type {Promise.<vs.models.DataSource>} */ (vs.models.DataSource.prototype.applyQuery.apply(this, arguments)
-        .then(/** @param {vs.models.DataSource} tmp */ function(tmp) {
-          queries = /** @type {Array.<vs.models.Query>} */ ((queries instanceof vs.models.Query) ? [queries] : queries);
-          var range = vs.models.GenomicRangeQuery.extract(queries);
 
-          /** @type {Array.<bigwig.BigwigFile>} */
-          var bwFiles = self['cols'][0].d.map(function(fileName, i) { return self[_colsFileMap][fileName]; });
+    var ready = self[_ready];
 
-          var rows = {};
-          var v = new Array(bwFiles.length);
+    self[_ready] = new Promise(function(resolve, reject) {
+      ready.then(function() {
+        self[_isReady] = false;
+        self['changing'].fire(self);
 
-          return u.async.each(bwFiles,
-            /**
-             * @param {bigwig.BigwigFile} bwFile
-             * @param {number} i
-             */
-            function(bwFile, i) {
-              return new Promise(function(resolve, reject) {
-                bwFile.query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {maxItems: self[_maxItems]})
-                  .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
-                    if (!rows.chr) {
-                      rows.chr = records.map(function(r) { return r.chrName; });
-                      rows.start = records.map(function(r) { return r.start; });
-                      rows.end = records.map(function(r) { return r.end; });
-                    }
-                    if (rows.chr.length < records.length) {
-                      records = records.slice(0, rows.chr.length);
-                    }
-                    if (records.length < rows.chr.length) {
-                      rows.chr = rows.chr.slice(0, records.length);
-                      rows.start = rows.start.slice(0, records.length);
-                      rows.end = rows.end.slice(0, records.length);
-                    }
-                    v[i] = records.map(function(r) { return r.value(bigwig.DataRecord.Aggregate.MAX); });
-                    resolve();
-                  });
-              });
-            }).then(function() {
-              var nrows = rows.chr.length;
-              var vals = v.reduce(function(v1, v2) { return v1.concat(v2); });
-              self['query'] = queries;
-              self['nrows'] = nrows;
-              self['rows'] = u.map(rows, function(val, key) { return new vs.models.DataArray(val, key); });
-              self['vals'] = [new vs.models.DataArray(vals, self[_valsLabel] || 'v0')];
-              self['changed'].fire(self);
-              self[_isReady] = true;
-              return Promise.resolve(self);
-            });
-        }));
-      self['changing'].fire(self);
-      return self[_ready];
+        queries = /** @type {Array.<vs.models.Query>} */ ((queries instanceof vs.models.Query) ? [queries] : queries);
+        var range = vs.models.GenomicRangeQuery.extract(queries);
+
+        self[_bwFile].query(/** @type {{chr: (string|number), start: number, end: number}} */ (range), {'maxItems': self[_maxItems]})
+          .then(/** @param {Array.<bigwig.DataRecord>} records */ function(records) {
+            var length = records.length;
+            for (var i = 0; i < length; ++i) {
+              records[i]['__d__'] = self[_id];
+            }
+
+            self['query'] = queries;
+            self['d'] = records;
+            self[_isReady] = true;
+            self['changed'].fire(self);
+            resolve(self);
+          });
+      });
     });
+
+    return self[_ready];
   };
 
   return BigwigDataSource;
